@@ -1,5 +1,4 @@
 # MultiFPS
-## unreal Multiplay Steam plugin <br/>
-  Steam / Lan
-## Unreal Multiplay FPS Game
+unreal Multiplay Steam plugin
+Unreal Multiplay FPS Game
 
