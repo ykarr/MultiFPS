@@ -8,6 +8,8 @@
 #include "Camera\CameraActor.h"
 #include "Interface/HUDInterface.h"
 #include "Engine\AssetManager.h"
+
+#include "Character/BattleCharacterBase.h"
 void ABattleControllerBase::BeginPlay()
 {
 	if (HasAuthority()) {
@@ -27,7 +29,10 @@ void ABattleControllerBase::SpawnPlayer(TSoftClassPtr<AActor> Team, FTransform S
 	UAssetManager::Get().GetStreamableManager().RequestAsyncLoad(Team.ToSoftObjectPath(),FStreamableDelegate::CreateLambda([this, Team, SPawnPlayerLoc, ActorSpawnParameters](){
 		if (TeamActor=Team.Get()) {
 			AActor* PlayerPawn = GetWorld()->SpawnActor<AActor>(Team.Get(), SPawnPlayerLoc, ActorSpawnParameters);
-			Possess(Cast<APawn>(PlayerPawn));
+			ABattleCharacterBase* PlayerCharacter = Cast<ABattleCharacterBase>(PlayerPawn);
+			Possess(Cast<APawn>(PlayerCharacter));
+			//InitPlayerState
+			PlayerCharacter->InitPlayerState();
 			CL_SpawnPlayer();
 		}
 	}));

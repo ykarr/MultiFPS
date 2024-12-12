@@ -28,12 +28,14 @@ struct FStateData;
 class IHUDInterface;
 class IGameModeInterface;
 class UMainWidget;
+class USoundAttenuation;
 UCLASS()
 class BATTLEWORLD_API ABattleCharacterBase : public ACharacter
 {
 	GENERATED_BODY()
 
 public:
+	void InitPlayerState();
 	UFUNCTION(Client, Reliable)
 	void CL_InitOverlay();
 	AWeaponBase* DroppedWeaponBase;
@@ -63,14 +65,30 @@ private:
 	TObjectPtr<UMainWidget> OverlayWidget;
 
 	ABattleHUD* HUD;
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentHealth)
 	float CurrentHealth;
+	UPROPERTY(ReplicatedUsing = OnRep_MaxHealth)
 	float MaxHealth;
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentAmor)
 	float CurrentAmor;
+	UPROPERTY(ReplicatedUsing = OnRep_MaxArmor)
 	float MaxArmor;
+
+	UFUNCTION()
+	void OnRep_MaxHealth();
+	UFUNCTION()
+	void OnRep_MaxArmor();
+	UFUNCTION()
+	void OnRep_CurrentHealth();
+	
+	UFUNCTION()
+	void OnRep_CurrentAmor();
+	
+
 	UPROPERTY(EditDefaultsOnly, Category = "DataTable")
 	TObjectPtr<UDataTable> CharacterDataTable;
+	UPROPERTY(EditDefaultsOnly, Category = "DataTable")
+	USoundAttenuation* SoundAttenuation;
 	UPROPERTY(Replicated)
 	AWeaponBase* CurrentEquipWeapon; //다른것은 역할이 끝나면 삭제됨. 이것은 삭제하지 않고 유지.
 	FTimerHandle ShootWeaponTimerHandle;
@@ -171,7 +189,7 @@ private:
 	void SetIsReloadingWeapon(bool Value);
 	void ReloadingWeapon();
 	FStateData* GetCharacterStateData()const;
-	void InitPlayerState();
+	
 	void SetPlayerHealth(float Value);
 	void Death(bool bIsDeathSet);
 	void Respawn();

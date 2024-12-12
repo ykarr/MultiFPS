@@ -136,15 +136,6 @@ void AWeaponBase::SphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, A
 
 				BeginOverlapAction(OtherActor);
 			}
-			else {
-				//이거 굳이 필요가 있나...?
-				GetWorld()->GetTimerManager().SetTimer(OverlapDelay, [this, OtherActor]() {
-					if (bCanbeInteracted) {
-						//GetWorld()->GetTimerManager().ClearTimer(OverlapDelay);
-						BeginOverlapAction(OtherActor);
-					}
-				}, 0.1, true);
-			}
 			
 		}
 	}

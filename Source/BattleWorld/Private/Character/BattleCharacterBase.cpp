@@ -100,13 +100,6 @@ void ABattleCharacterBase::BeginPlay()
 		UE_LOG(LogTemp, Display, TEXT("BeginPlay++"));
 	}
 	Tags.Add("Player");
-	//APlayerController* PlayerControllerBattle = Cast<APlayerController>(Controller);
-	/*PlayerController = Cast<ABattleControllerBase>(GetController());
-	if (PlayerController) {
-		if (TObjectPtr<UEnhancedInputLocalPlayerSubsystem> Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer())) {
-			Subsystem->AddMappingContext(BattleContext, 0);
-		}
-	}*/
 	FTimerHandle StartDelay;
 	GetWorld()->GetTimerManager().SetTimer(StartDelay, [this]() {
 		PlayerController = Cast<ABattleControllerBase>(GetController());
@@ -117,41 +110,29 @@ void ABattleCharacterBase::BeginPlay()
 		}
 	}, 0.1, false);
 	GetMesh()->HideBoneByName(FName("head"), EPhysBodyOp::PBO_None);
-	FTimerHandle StateInitDelay;
+	/*FTimerHandle StateInitDelay;
 	GetWorld()->GetTimerManager().SetTimer(StateInitDelay, [this]() {
 		InitPlayerState();
-	}, 1, false);
-	
+	}, 1, false);*/
+		
 }
 
 void ABattleCharacterBase::CL_InitOverlay_Implementation()
 {
 	//APlayerController* PlayerControllerBattle = Cast<APlayerController>(Controller);
 	PlayerController = Cast<ABattleControllerBase>(GetController());
-	
-	OverlayWidget = CreateWidget<UMainWidget>(PlayerController, OverlayWidgetClass);
+	if (!OverlayWidget) {
+		OverlayWidget = CreateWidget<UMainWidget>(PlayerController, OverlayWidgetClass);
+	}
 	if (OverlayWidget) {
 		OverlayWidget->AddToViewport(0);
 	}
-
-	
-	/*
-	UAssetManager::Get().GetStreamableManager().RequestAsyncLoad(OverlayWidgetClass.ToSoftObjectPath(),FStreamableDelegate::CreateLambda([this](){
-		APlayerController* PlayerControllerBattle = Cast<APlayerController>(Controller);
-		if (OverlayWidgetClass.Get()) {
-			OverlayWidget = CreateWidget<UMainWidget>(PlayerControllerBattle, OverlayWidgetClass.Get());
-			if (OverlayWidget) {
-				OverlayWidget->AddToViewport(0);
-			}
-		}
-	}));*/
 }
 
 void ABattleCharacterBase::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
 
-	
 }
 void ABattleCharacterBase::Tick(float DeltaTime)
 {
@@ -175,24 +156,29 @@ void ABattleCharacterBase::SRV_TestFunc_Implementation()
 void ABattleCharacterBase::InitPlayerState()
 {
 	
+
 	CL_InitOverlay();
 	if (const FStateData* StateData = GetCharacterStateData()) {
 		MaxHealth = StateData->MaxHealth;
+		OnRep_MaxHealth();
 		MaxArmor = StateData->MaxArmor;
-		SetPlayerHealth(StateData->MaxHealth);
-		SetPlayerAmor(StateData->MaxArmor);
+		OnRep_MaxArmor();
 	}
-	
 }
-
+void ABattleCharacterBase::OnRep_MaxHealth()
+{
+	SetPlayerHealth(MaxHealth);
+}
+void ABattleCharacterBase::OnRep_MaxArmor()
+{
+	SetPlayerAmor(MaxArmor);
+}
 FStateData* ABattleCharacterBase::GetCharacterStateData() const
 {
 	return CharacterDataTable->FindRow<FStateData>(FName("Player"), FString("Player"));
 }
 void ABattleCharacterBase::CL_UpdateAmmoUI_Implementation(int32 CurrentAmmo, int32 ExtraAmmo)
 {
-	//PlayerController->BattleHUD->UpdateAmmoUI(CurrentAmmo, ExtraAmmo);
-
 	OverlayWidget->OnAmmoUpdateValue.Broadcast(CurrentAmmo, ExtraAmmo);
 }
 void ABattleCharacterBase::CL_DisplayAmmoUI_Implementation(bool bIsShowWidget)
@@ -202,24 +188,17 @@ void ABattleCharacterBase::CL_DisplayAmmoUI_Implementation(bool bIsShowWidget)
 }
 void ABattleCharacterBase::CL_SetPlayerHealth_Implementation()
 {
-	FStateData* StateData = GetCharacterStateData();
-	//BattleHUDInterface = GetWorld()->GetFirstPlayerController()->GetHUD();
-	// 
-	//BattleHUDInterface = PlayerController->GetHUD();
-	//BattleHUDInterface->GetBattleHUD()->UpdateHealthUI(CurrentHealth, StateData->MaxHealth);
-	//OverlayWidget->OnHealthChangedValue.Broadcast(CurrentHealth, StateData->MaxHealth);
-	//OverlayWidget->OnHealthChangedValue.Broadcast(CurrentHealth, MaxHealth);
-	
-	OverlayWidget->UpdateHealthUI(CurrentHealth, MaxHealth);
+	if (OverlayWidget) {
+		OverlayWidget->OnHealthChangedValue.Broadcast(CurrentHealth, MaxHealth);
+	}
+	//OverlayWidget->UpdateHealthUI(CurrentHealth, MaxHealth);
 }
 void ABattleCharacterBase::CL_SetPlayerAmor_Implementation()
 {
 	FStateData* StateData = GetCharacterStateData();
-	//BattleHUDInterface = GetWorld()->GetFirstPlayerController()->GetHUD();
-	//BattleHUDInterface = PlayerController->GetHUD();
-	//BattleHUDInterface->GetBattleHUD()->UpdateAmorUI(CurrentAmor, StateData->MaxArmor);
-	//OverlayWidget->OnAmorChangedValue.Broadcast(CurrentAmor, MaxArmor);
-	OverlayWidget->OnAmorChangedValue.Broadcast(CurrentAmor, StateData->MaxArmor);
+	if (OverlayWidget) {
+		OverlayWidget->OnAmorChangedValue.Broadcast(CurrentAmor, StateData->MaxArmor);
+	}
 
 }
 void ABattleCharacterBase::SetPlayerHealth(float Value)
@@ -229,8 +208,9 @@ void ABattleCharacterBase::SetPlayerHealth(float Value)
 }
 void ABattleCharacterBase::SRV_SetPlayerHealth_Implementation(float Value)
 {
+	UKismetSystemLibrary::PrintString(GetWorld(),FString::FormatAsNumber(Value));
 	CurrentHealth = Value;
-	CL_SetPlayerHealth();
+	OnRep_CurrentHealth();
 }
 void ABattleCharacterBase::SetPlayerAmor(float Value)
 {
@@ -239,8 +219,19 @@ void ABattleCharacterBase::SetPlayerAmor(float Value)
 void ABattleCharacterBase::SRV_SetPlayerAmor_Implementation(float Value)
 {
 	CurrentAmor = Value;
+	OnRep_CurrentAmor();
+}
+
+void ABattleCharacterBase::OnRep_CurrentHealth()
+{
+	CL_SetPlayerHealth();
+}
+
+void ABattleCharacterBase::OnRep_CurrentAmor()
+{
 	CL_SetPlayerAmor();
 }
+
 #pragma endregion
 #pragma region Attack
 void ABattleCharacterBase::MC_ShootWeaponSFXEFFECT_Implementation()
@@ -254,15 +245,12 @@ void ABattleCharacterBase::MC_ShootWeaponSFXEFFECT_Implementation()
 		UGameplayStatics::PlaySoundAtLocation(this, CurrentEquipWeapon->GetItemData()->ShootingSFX, GetActorLocation());
 	}
 	else {
-		UGameplayStatics::PlaySoundAtLocation(this, CurrentEquipWeapon->GetItemData()->OutOfAmmoSFX, GetActorLocation());
+		//UGameplayStatics::PlaySoundAtLocation(this, CurrentEquipWeapon->GetItemData()->OutOfAmmoSFX, GetActorLocation());
+		UGameplayStatics::PlaySoundAtLocation(this, CurrentEquipWeapon->GetItemData()->OutOfAmmoSFX, GetActorLocation(), 1.0f, 1.0f, 0.f, SoundAttenuation);
 	}
 }
 void ABattleCharacterBase::FireLoop()
 {
-	//APlayerCameraManager* CameraManager = GetWorld()->GetFirstPlayerController()->PlayerCameraManager;
-	//FVector Loc = CameraManager->GetCameraLocation();
-	//FVector Rot = CameraManager->GetCameraRotation().Vector();
-	//FVector Rot = CameraManager->GetActorForwardVector();
 	FHitResult Hit;
 	FVector Loc = ViewCamera->GetComponentLocation();
 	FVector Rot = ViewCamera->GetForwardVector();
@@ -270,17 +258,15 @@ void ABattleCharacterBase::FireLoop()
 	FCollisionQueryParams CollisionQueryParams(NAME_None, false, this);
 	TArray<AActor*> Ac;
 	Ac.Add(this);
-
-	CurrentEquipWeapon->CurrentAmmo = FMath::Clamp(CurrentEquipWeapon->CurrentAmmo - 1, 0, CurrentEquipWeapon->GetItemData()->MaxAmmoAmount);
 	MC_ShootWeaponSFXEFFECT();
-	CL_UpdateAmmoUI(CurrentEquipWeapon->CurrentAmmo, CurrentEquipWeapon->CurrentMaxExtraAmmo);
+	
 	float RandomX = FMath::FRandRange(-100.f, 100.f);
 	float RandomY = FMath::FRandRange(-100.f, 100.f);
 	float RandomZ = FMath::FRandRange(-100.f, 100.f);
 	if (GetWorld()->LineTraceSingleByChannel(Hit, Loc, Loc + FVector(RandomX, RandomY, RandomZ) + (Rot * 10000), ECollisionChannel::ECC_Visibility, CollisionQueryParams)) {
 		
 		//if (UKismetSystemLibrary::LineTraceSingle(GetWorld(), Loc, (Rot * 10000) + Loc, ETraceTypeQuery::TraceTypeQuery1, false, Ac, EDrawDebugTrace::ForDuration, Hit, true)) {
-		if (Hit.bBlockingHit) {
+		if (Hit.bBlockingHit&&!IsOutOfAmmo()) {
 			UE_LOG(LogTemp, Display, TEXT("Hit"));
 			MC_BulletImpact(CurrentEquipWeapon, Hit);
 			if (Hit.GetActor()->ActorHasTag("Player")) {
@@ -304,6 +290,9 @@ void ABattleCharacterBase::FireLoop()
 
 		}
 	}
+	//탄약 업데이트
+	CurrentEquipWeapon->CurrentAmmo = FMath::Clamp(CurrentEquipWeapon->CurrentAmmo - 1, 0, CurrentEquipWeapon->GetItemData()->MaxAmmoAmount);
+	CL_UpdateAmmoUI(CurrentEquipWeapon->CurrentAmmo, CurrentEquipWeapon->CurrentMaxExtraAmmo);
 
 	if (IsOutOfAmmo() && !bIsReLoading && HasExtraAmmo()) {
 		SetIsReloadingWeapon(true);
@@ -382,7 +371,6 @@ void ABattleCharacterBase::ReloadingWeapon()
 			}
 		}
 	}
-
 }
 void ABattleCharacterBase::SRV_SetIsReloadingWeapon_Implementation(bool Value)
 {
@@ -391,19 +379,21 @@ void ABattleCharacterBase::SRV_SetIsReloadingWeapon_Implementation(bool Value)
 		MC_SetIsReloadingWeapon(CurrentEquipWeapon->GetItemData()->ReloadAnimation);
 	}
 	else {
-		if (CurrentEquipWeapon->CurrentMaxExtraAmmo + CurrentEquipWeapon->CurrentAmmo >= CurrentEquipWeapon->GetItemData()->MaxAmmoAmount) {
-			int32 CurrentAmoTemp = CurrentEquipWeapon->CurrentAmmo;
-			CurrentEquipWeapon->CurrentAmmo = CurrentEquipWeapon->GetItemData()->MaxAmmoAmount;
-			int32 CurremtMaxAmoTemp = CurrentEquipWeapon->CurrentMaxExtraAmmo - (CurrentEquipWeapon->GetItemData()->MaxAmmoAmount - CurrentAmoTemp);
-			//CurrentEquipWeapon->CurrentMaxExtraAmmo -= CurrentEquipWeapon->GetItemData()->MaxAmmoAmount - CurrentAmoTemp;
-			CurrentEquipWeapon->CurrentMaxExtraAmmo = UKismetMathLibrary::Clamp(CurremtMaxAmoTemp, 0, CurrentEquipWeapon->CurrentMaxExtraAmmo);
-		}
-		else {
-			CurrentEquipWeapon->CurrentAmmo = UKismetMathLibrary::Clamp(CurrentEquipWeapon->CurrentMaxExtraAmmo + CurrentEquipWeapon->CurrentAmmo, 0, CurrentEquipWeapon->GetItemData()->MaxAmmoAmount);
-			CurrentEquipWeapon->CurrentMaxExtraAmmo = 0;
+		if (CurrentEquipWeapon) {
+			if (CurrentEquipWeapon->CurrentMaxExtraAmmo + CurrentEquipWeapon->CurrentAmmo >= CurrentEquipWeapon->GetItemData()->MaxAmmoAmount) {
+				int32 CurrentAmoTemp = CurrentEquipWeapon->CurrentAmmo;
+				CurrentEquipWeapon->CurrentAmmo = CurrentEquipWeapon->GetItemData()->MaxAmmoAmount;
+				int32 CurremtMaxAmoTemp = CurrentEquipWeapon->CurrentMaxExtraAmmo - (CurrentEquipWeapon->GetItemData()->MaxAmmoAmount - CurrentAmoTemp);
+				//CurrentEquipWeapon->CurrentMaxExtraAmmo -= CurrentEquipWeapon->GetItemData()->MaxAmmoAmount - CurrentAmoTemp;
+				CurrentEquipWeapon->CurrentMaxExtraAmmo = UKismetMathLibrary::Clamp(CurremtMaxAmoTemp, 0, CurrentEquipWeapon->CurrentMaxExtraAmmo);
+			}
+			else {
+				CurrentEquipWeapon->CurrentAmmo = UKismetMathLibrary::Clamp(CurrentEquipWeapon->CurrentMaxExtraAmmo + CurrentEquipWeapon->CurrentAmmo, 0, CurrentEquipWeapon->GetItemData()->MaxAmmoAmount);
+				CurrentEquipWeapon->CurrentMaxExtraAmmo = 0;
 
+			}
+			CL_UpdateAmmoUI(CurrentEquipWeapon->CurrentAmmo, CurrentEquipWeapon->CurrentMaxExtraAmmo);
 		}
-		CL_UpdateAmmoUI(CurrentEquipWeapon->CurrentAmmo, CurrentEquipWeapon->CurrentMaxExtraAmmo);
 	}
 }
 void ABattleCharacterBase::MC_SetIsReloadingWeapon_Implementation(UAnimMontage* ReloadAnim)
@@ -429,11 +419,13 @@ void ABattleCharacterBase::MC_BulletImpact_Implementation(AWeaponBase* Weapon, F
 {
 	if (HitResult.GetActor()->ActorHasTag("Player")) {
 		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Weapon->GetItemData()->BulletPlayerImpactVFX, HitResult.Location);
-		UGameplayStatics::PlaySoundAtLocation(GetWorld(), Weapon->GetItemData()->BulletPlayerImpactSFX, HitResult.Location);
+		//UGameplayStatics::PlaySoundAtLocation(GetWorld(), Weapon->GetItemData()->BulletPlayerImpactSFX, HitResult.Location);
+		UGameplayStatics::PlaySoundAtLocation(GetWorld(), Weapon->GetItemData()->BulletPlayerImpactSFX, HitResult.Location, 1.0f, 1.0f, 0.f, SoundAttenuation);
 	}
 	else {
 		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Weapon->GetItemData()->BulletImpactVFX, HitResult.Location);
-		UGameplayStatics::PlaySoundAtLocation(GetWorld(), Weapon->GetItemData()->BulletImpactSFX, HitResult.Location);
+		//UGameplayStatics::PlaySoundAtLocation(GetWorld(), Weapon->GetItemData()->BulletImpactSFX, HitResult.Location);
+		UGameplayStatics::PlaySoundAtLocation(GetWorld(), Weapon->GetItemData()->BulletImpactSFX, HitResult.Location, 1.0f, 1.0f, 0.f, SoundAttenuation);
 	}
 	UGameplayStatics::SpawnDecalAtLocation(GetWorld(), Weapon->GetItemData()->BulletDecal, FVector(5, 5, 5), HitResult.Location, HitResult.ImpactNormal.Rotation(), 10);
 
@@ -487,7 +479,7 @@ void ABattleCharacterBase::SRV_DeathDropWeapon_Implementation()
 		else {
 			GetWorld()->GetTimerManager().ClearTimer(WeaponDropResetDelay);
 		}
-		}, 0.5, true);
+	}, 0.5, true);
 }
 void ABattleCharacterBase::SRV_Death_Implementation(bool bIsDeathSet)
 {
@@ -532,12 +524,19 @@ void ABattleCharacterBase::SRV_Respawn_Implementation()
 	BattleGameModeInterface = GetWorld()->GetAuthGameMode();
 	TObjectPtr<ABattleGameModeBase> GMBase = BattleGameModeInterface->GetBattleGameModeBase();
 	GMBase->RequestSpawnPlayer(bIsBlueTeam, PlayerController);
+
+	FTimerHandle DeleteDelay;
+	GetWorld()->GetTimerManager().SetTimer(DeleteDelay,[this](){
+		Destroy();
+	},15.f,false);
 }
 void ABattleCharacterBase::ONnRep_PlayerSpawnTransform()
 {
 	SetActorTransform(PlayerSpawnTransform);
 	Death(false);
 }
+
+
 #pragma endregion
 #pragma region Movement
 void ABattleCharacterBase::Look(const FInputActionValue& Value)
@@ -703,7 +702,9 @@ void ABattleCharacterBase::SRV_Crouch_Implementation(bool bIsCrouch)
 #pragma region MoveSFX
 void ABattleCharacterBase::MC_PlayFootStepSFX_Implementation()
 {
-	UGameplayStatics::PlaySoundAtLocation(this, FootStepSoundArray[0], GetActorLocation());
+	if (SoundAttenuation && FootStepSoundArray[0]) {
+		UGameplayStatics::PlaySoundAtLocation(this, FootStepSoundArray[0], GetActorLocation(),1.0f,1.0f,0.f, SoundAttenuation);
+	}
 }
 void ABattleCharacterBase::SRV_PlayFootStepSFX_Implementation()
 {
@@ -843,11 +844,7 @@ void ABattleCharacterBase::SRV_RequestLootWeapon_Implementation()
 				//	BattleCharacterRef->bCanLootWeapon = false;
 				//	break;
 				}
-				//----------------------------------------------------------------------------------------------------------------------
-				//else {//401_Test
-				//	AddOverlapWeapon(OverlapWeaponRef);
-				//	break;
-				//}
+
 			}
 			FTimerHandle WeaponDropResetDelay;
 			GetWorld()->GetTimerManager().SetTimer(WeaponDropResetDelay, [this]() {
@@ -867,15 +864,12 @@ void ABattleCharacterBase::SRV_LootWeapons_Implementation()
 	bLootingWeapon = true;
 	if (!OverlapWeapons.IsEmpty()) {
 		WeaponInventory.Add(OverlapWeapons[0]);
-		if (LootWeaponBase == OverlapWeapons[0]) {//??? ???? ??????...?
+		if (LootWeaponBase == OverlapWeapons[0]) {
 			LootWeaponBase = nullptr;
 			OnRep_LootWeaponBase();
 		}
 		LootWeaponBase = OverlapWeapons[0];
-		//FItemData* ItemData = LootWeaponBase->GetItemData();
-
 		OnRep_LootWeaponBase();
-
 		FTimerHandle TimerHandle;
 		GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]() {
 			//UE_LOG(LogTemp, Display, TEXT("************************"));
@@ -984,6 +978,7 @@ void ABattleCharacterBase::OnRep_UnEquipWeapon()
 void ABattleCharacterBase::OnRep_WeaponToDrop()
 {
 	if (IsValid(WeaponToDrop)) {
+		UKismetSystemLibrary::PrintString(GetWorld(), "Drop Weapon");
 		FDetachmentTransformRules DetachmentTransformRules(EDetachmentRule::KeepWorld, EDetachmentRule::KeepWorld, EDetachmentRule::KeepWorld, true);
 		WeaponToDrop->DetachFromActor(DetachmentTransformRules);
 
@@ -1065,9 +1060,10 @@ void ABattleCharacterBase::DropWeapon(AWeaponBase* WeaponRef)
 	WeaponToDrop = WeaponRef;
 	EWeaponType TmpType = WeaponToDrop->GetItemData()->Type;
 	OnRep_WeaponToDrop();
-	SetDroppedWeapon(WeaponToDrop);//??? ?????? ?????? ???????.
+	SetDroppedWeapon(WeaponToDrop);
 	CL_DisplayAmmoUI(false);
 	CL_UpdateInventoryUI(TmpType, nullptr);
+	WeaponToDrop->bCanbeInteracted = true;
 	WeaponInventory.Remove(WeaponToDrop);
 	if (TmpType == EquippedWeaponType) {
 		SetEquippedWeaponType(EWeaponType::EWS_UnArm);
@@ -1100,6 +1096,7 @@ void ABattleCharacterBase::SRV_DropWeapon_Implementation()
 void ABattleCharacterBase::SRV_SetDroppedWeapon_Implementation(AWeaponBase* DroppedWeapon)
 {
 	DroppedWeaponBase = DroppedWeapon;
+	
 }
 /*Player Select Rifle*/
 void ABattleCharacterBase::SelectPrimaryWeapon()
@@ -1123,8 +1120,6 @@ void ABattleCharacterBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	//#include "Net/UnrealNetwork.h"
-	// Replicated ?????? ????????.
-	// ????: Replicated ?????? bIsCrouching?? ????????.
 	//DOREPLIFETIME_CONDITION(ABattleCharacterBase, bIsCrouching);
 	DOREPLIFETIME(ABattleCharacterBase, bIsCrouching);
 	DOREPLIFETIME(ABattleCharacterBase, bIsSprinting);
@@ -1134,10 +1129,12 @@ void ABattleCharacterBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	DOREPLIFETIME(ABattleCharacterBase, LootWeaponBase);
 	DOREPLIFETIME(ABattleCharacterBase, WeaponToDrop);
 	DOREPLIFETIME(ABattleCharacterBase, CurrentEquipWeapon);
-	//DOREPLIFETIME(ABattleCharacterBase, EquipWeapon);
+	DOREPLIFETIME(ABattleCharacterBase, EquipWeapon);
 	DOREPLIFETIME(ABattleCharacterBase, bIsEquippingWeapon);
 	DOREPLIFETIME(ABattleCharacterBase, bIsReLoading);
+	DOREPLIFETIME(ABattleCharacterBase, MaxHealth);
 	DOREPLIFETIME(ABattleCharacterBase, CurrentHealth);
+	DOREPLIFETIME(ABattleCharacterBase, MaxArmor);
 	DOREPLIFETIME(ABattleCharacterBase, CurrentAmor);
 	DOREPLIFETIME(ABattleCharacterBase, bIsDead);
 }
